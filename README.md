@@ -100,6 +100,27 @@ Work these in order:
    Snapshot helpers: `pnputil /enum-devices /connected` before/after reseat; Event Viewer → *Applications and Services Logs → Microsoft → Windows → Kernel-PnP → Configuration* (and DeviceSetupManager); optional GUI: **USBTreeView** / USBView.  
    **No arrival/removal at all** on reseat ⇒ Windows never saw a USB attach (deck power/USB path or dead module) — not a missing driver for `RPI-RP2`.
 
+   **Identify what arrived** (run right after an Arrival, Admin PowerShell):
+
+   ```powershell
+   # Raspberry Pi Pico / RP2040 (bootloader or CDC) — VID 2E8A
+   Get-PnpDevice -PresentOnly |
+     Where-Object { $_.InstanceId -match 'VID_2E8A' } |
+     Format-Table Status, Class, FriendlyName, InstanceId -Auto
+
+   # Or broader: anything new-looking under USB / Ports / DiskDrive
+   pnputil /enum-devices /connected /class USB
+   pnputil /enum-devices /connected /class Ports
+   pnputil /enum-devices /connected /class DiskDrive
+   ```
+
+   | What you see | Meaning | Next |
+   | --- | --- | --- |
+   | **RP2 Boot** / Disk **`RPI-RP2`** / `VID_2E8A&PID_0003` | BOOTSEL OK | `pio run -t upload` or drag `.uf2` onto `RPI-RP2` |
+   | **USB Serial** / **COM** / `VID_2E8A&PID_000A` (or similar CDC) | App firmware running, not bootloader | DIP2 not ON at power-on — remove, DIP2 fully right/ON, reinsert |
+   | Other VID/PID or unknown USB | Wrong/unexpected device | Paste **FriendlyName + InstanceId (VID/PID)** for help |
+   | Arrival events but **no** `2E8A` device | USB attach without RP2040 enum | Reseat; try other bay; report InstanceIds from the commands above |
+
 5. **Bay / USB path**  
    Reseat firmly; try the **other** half-size bay. The input deck must normally be **fully populated** for module power (BIOS can override “Input Module Power”). There is no separate flash cable in the laptop — the pogo connector *is* USB.
 
