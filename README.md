@@ -63,14 +63,38 @@ The RP2040 only enters the UF2 bootloader when **DIP switch 2 is ON at the momen
 5. Upload with PlatformIO (`pio run -t upload`), which uses **picotool** against the BOOTSEL USB device, **or** drag `.pio/build/fw16_rgb/firmware.uf2` onto the `RPI-RP2` drive. Either path needs BOOTSEL; drag-drop specifically needs the `RPI-RP2` volume.
 6. After upload finishes, **remove** the module, slide switch **2** back **left** (away from ON), and reinsert. Animation should start immediately with no host app.
 
-#### If `RPI-RP2` never appears
+#### If `RPI-RP2` never appears (deeper checks)
 
-- Confirm you powered the module **after** setting switch 2 (remove → switch → reinsert). Do not flip the switch in-place and expect BOOTSEL.
-- Confirm it is switch **2**, fully to the **right / ON**, not switch 1 and not a half-toggle.
-- Confirm this is a **Joe Schroedl RGB** NeoPixel module (or another RP2040 RGB panel with the same DIP). Official Framework **white** LED matrices are different hardware; they also use DIP2 for BOOTSEL but this firmware is not for them.
-- Try another input-deck bay / reseat firmly. The laptop’s deck USB connection is the cable — there is no separate USB wire for a normal flash.
-- On Windows: Device Manager → look for **RP2 Boot**. If nothing new appears on insert, the MCU is not in bootloader (or not getting USB).
-- PlatformIO upload (`picotool`) also requires BOOTSEL; it will not fall back to a normal COM-port serial flash for this project.
+Work these in order:
+
+1. **Confirm DIP 2 orientation (photos)**  
+   On the back near the connector: the raised bump on switch **2** must sit next to the printed **ON** label — fully to the **right**. Joe’s photos: [jschroedl.com/rgb-start](https://jschroedl.com/rgb-start/) (“Gently push switch 2 to the right”). If the bump is on the left, you are in normal run mode, not BOOTSEL.
+
+2. **Switch 1 does not enter bootloader**  
+   Leave switch **1** alone. On Framework-style modules, DIP1 is a user GPIO (official white matrix: GPIO25); only **DIP2 is BOOTSEL**. Flipping both switches is not required and can confuse the check.
+
+3. **Bootloader vs firmware already running**  
+   - DIP2 **ON** + power → expect **no app animation** and an **`RPI-RP2` / RP2 Boot** device.  
+   - DIP2 **OFF** + power → expect normal firmware (stock Adalight often sits dark until OpenRGB; our firmware shows a flowing rainbow) and a **COM / USB Serial** port, **not** `RPI-RP2`.  
+   If DIP2 is ON but LEDs still run and you only get a COM port, BOOTSEL is not actually asserted (wrong switch / not fully ON).
+
+4. **Windows Device Manager (View → Devices by connection, then reinsert)**  
+   Look for any of: **RP2 Boot**, **USB Mass Storage Device**, a new disk/volume **`RPI-RP2`**, USB VID **`2E8A`** (Raspberry Pi).  
+   Also note the opposite case with DIP2 **OFF**: a new **USB Serial Device / COM port** means the deck USB path works and the MCU is alive — then the remaining issue is only BOOTSEL.  
+   If **nothing** new appears for either DIP2 ON or OFF, the module is not enumerating on USB (bay/contact/power), not a PlatformIO problem.
+
+5. **Bay / USB path**  
+   Reseat firmly; try the **other** half-size bay. The input deck must normally be **fully populated** for module power (BIOS can override “Input Module Power”). There is no separate flash cable in the laptop — the pogo connector *is* USB.
+
+6. **RGB vs official white matrix**  
+   - **RGB (Joe Schroedl):** color NeoPixels; can show full rainbows; this repo targets those.  
+   - **Official Framework white:** monochrome white/amber LEDs via IS31FL3741 (9×34); same DIP2→BOOTSEL idea, but **this firmware is wrong** for them.  
+   If unsure: with DIP2 OFF and stock firmware, OpenRGB/Adalight color control ⇒ RGB; Framework `inputmodule-control` / greyscale matrix tools ⇒ white.
+
+7. **Standalone USB flash (if the deck path fails)**  
+   Use a Framework **Input Module USB-C adapter** (or community external enclosure) so the module’s USB is a normal cable to the PC. DIP2 ON, then plug in power/USB — same `RPI-RP2` expectation. Use a **data** USB-C cable, not charge-only. Adapter docs: [Framework InputModules](https://github.com/FrameworkComputer/InputModules) / developer adapter program.
+
+8. PlatformIO `pio run -t upload` (picotool) still needs BOOTSEL; it will not flash over a normal COM port for this project.
 
 See also [Joe Schroedl’s RGB programming steps](https://jschroedl.com/rgb-start/).
 
