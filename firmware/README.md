@@ -17,11 +17,11 @@ firmware/
 1. Install [VS Code](https://code.visualstudio.com/) and the **PlatformIO IDE** extension.
 2. Open the `firmware/` folder (or this repo and select the `fw16_rgb` env).
 3. **Build:** PlatformIO → Build, or `pio run` from `firmware/`.
-4. Put the module in BOOTSEL: remove it, set DIP switch **2** ON, reinsert (`RPI-RP2` appears).
-5. **Upload:** PlatformIO → Upload, or `pio run -t upload`.
-6. Remove the module, set DIP **2** OFF, reinsert. Animation starts immediately.
+4. Put the module in BOOTSEL: **remove** it (must be unpowered), set DIP switch **2** fully **right / ON** (on the back, near the connector; leave switch 1 alone), then **reinsert**. An `RPI-RP2` volume / “RP2 Boot” device should appear. Flipping DIP2 while already powered usually does nothing.
+5. **Upload:** PlatformIO → Upload (`pio run -t upload` via picotool), or drag `.pio/build/fw16_rgb/firmware.uf2` onto `RPI-RP2`.
+6. Remove the module, set DIP **2** back **left / OFF**, reinsert. Animation starts immediately.
 
-Artifacts land in `.pio/build/fw16_rgb/` (including a `.uf2` you can drag onto `RPI-RP2` if preferred).
+If `RPI-RP2` never appears, see the troubleshooting notes in the root README.
 
 Serial monitor: `pio device monitor` (115200 baud).
 

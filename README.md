@@ -54,13 +54,25 @@ In VS Code: open `firmware/`, pick env **`fw16_rgb`**, then use the PlatformIO B
 
 ### BOOTSEL steps
 
-1. Remove the RGB LED module from the laptop.
-2. Flip DIP switch **2** to **ON** (BOOTSEL).
-3. Reinsert the module — an `RPI-RP2` drive should appear.
-4. Run `pio run -t upload` (or drag the `.uf2` from `.pio/build/fw16_rgb/` onto `RPI-RP2`).
-5. Remove the module, set DIP switch **2** back to **OFF**, and reinsert.
+The RP2040 only enters the UF2 bootloader when **DIP switch 2 is ON at the moment USB power is applied**. Flipping the switch while the module is already powered usually does nothing.
 
-On power-up the panel should immediately show a flowing rainbow. No host app is required.
+1. **Remove** the RGB LED module from the laptop (it must be unpowered).
+2. Flip the module over. Near the main-board connector are **two** small DIP switches. Using tweezers, gently push switch **2** all the way to the **right**, toward the printed **ON** label. (Leave switch 1 alone.)
+3. **Reinsert** the module into the Framework 16 input deck — that reinsertion is the power cycle.
+4. Windows should show a mass-storage volume named **`RPI-RP2`** (File Explorer). In Device Manager look for an **RP2 Boot** device. Linux/macOS: a similar `RPI-RP2` mount.
+5. Upload with PlatformIO (`pio run -t upload`), which uses **picotool** against the BOOTSEL USB device, **or** drag `.pio/build/fw16_rgb/firmware.uf2` onto the `RPI-RP2` drive. Either path needs BOOTSEL; drag-drop specifically needs the `RPI-RP2` volume.
+6. After upload finishes, **remove** the module, slide switch **2** back **left** (away from ON), and reinsert. Animation should start immediately with no host app.
+
+#### If `RPI-RP2` never appears
+
+- Confirm you powered the module **after** setting switch 2 (remove → switch → reinsert). Do not flip the switch in-place and expect BOOTSEL.
+- Confirm it is switch **2**, fully to the **right / ON**, not switch 1 and not a half-toggle.
+- Confirm this is a **Joe Schroedl RGB** NeoPixel module (or another RP2040 RGB panel with the same DIP). Official Framework **white** LED matrices are different hardware; they also use DIP2 for BOOTSEL but this firmware is not for them.
+- Try another input-deck bay / reseat firmly. The laptop’s deck USB connection is the cable — there is no separate USB wire for a normal flash.
+- On Windows: Device Manager → look for **RP2 Boot**. If nothing new appears on insert, the MCU is not in bootloader (or not getting USB).
+- PlatformIO upload (`picotool`) also requires BOOTSEL; it will not fall back to a normal COM-port serial flash for this project.
+
+See also [Joe Schroedl’s RGB programming steps](https://jschroedl.com/rgb-start/).
 
 `platformio.ini` encodes the stock module settings: Generic RP2040, Earle Philhower core, Boot2 **W25Q16JVxQ QSPI /4**, 4MB flash with no filesystem, Adafruit NeoPixel.
 
