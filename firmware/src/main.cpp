@@ -5,16 +5,13 @@
  * Animation runs on-device without a host. USB CDC serial accepts power
  * and brightness commands (see docs/PROTOCOL.md).
  *
- * Arduino IDE board settings (same as stock Adalight firmware):
- *   Board:        Generic RP2040
- *   Boot Stage 2: W25Q16JVxQ QSPI /4
- *   Flash Size:   4MB (no FS)
- *   USB Stack:    Pico SDK
+ * Build/flash with PlatformIO (see firmware/platformio.ini and README).
  */
 
 #include <Adafruit_NeoPixel.h>
-#include <strings.h>
+#include <Arduino.h>
 #include <stdlib.h>
+#include <strings.h>
 #include "pico/bootrom.h"
 #include "config.h"
 
@@ -59,7 +56,6 @@ void setup() {
   showAll();
 
   Serial.begin(SERIAL_BAUD);
-  // Identify ourselves for the Windows control app / serial monitors.
   Serial.println(F("FUNKY FW16 RGB ready"));
   replyStatus();
   lastFrameMs = millis();
@@ -96,7 +92,6 @@ static void showAll() {
   }
 }
 
-// HSV-style rainbow wheel (0-255) -> RGB.
 static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   pos = 255 - pos;
   if (pos < 85) {
@@ -116,11 +111,9 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Soft diagonal rainbow that drifts across the 8x36 panel.
 static void renderFlowFrame() {
   for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
     for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-      // Combine column, row, and time so color flows diagonally.
       const uint8_t hue =
           (uint8_t)(y * 4 + x * 18 + (animPhase & 0xFF));
       uint8_t r, g, b;
@@ -148,7 +141,6 @@ static void replyErr(const char *msg) {
 }
 
 static void handleLine(char *line) {
-  // Trim CR and leading/trailing spaces.
   while (*line == ' ' || *line == '\t') {
     line++;
   }
@@ -161,7 +153,6 @@ static void handleLine(char *line) {
     return;
   }
 
-  // Case-insensitive command compare helpers.
   if (strcasecmp(line, "ON") == 0) {
     powerOn = true;
     replyOk();
@@ -184,7 +175,6 @@ static void handleLine(char *line) {
     replyOk();
     Serial.flush();
     delay(50);
-    // Jump to UF2 bootloader (RP2040).
     reset_usb_boot(0, 0);
     return;
   }
@@ -231,7 +221,6 @@ static void processSerial() {
     } else if (lineLen + 1 < sizeof(lineBuf)) {
       lineBuf[lineLen++] = c;
     } else {
-      // Overflow — drop until newline.
       lineLen = 0;
       replyErr("line too long");
       while (Serial.available() > 0 && Serial.peek() != '\n') {

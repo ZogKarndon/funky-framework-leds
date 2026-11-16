@@ -1,6 +1,6 @@
 # funky-framework-leds
 
-Stand-alone flowing RGB animation for **Framework Laptop 16 RGB LED Matrix** modules (Joe Schroedl Rev 2 NeoPixel panels), plus a simple Windows control app for power and brightness.
+Stand-alone flowing RGB animation for **Framework Laptop 16 RGB LED Matrix** modules (Joe Schroedl Rev 2 NeoPixel panels), plus a native Windows **system tray** app for power, brightness, and global hotkeys.
 
 The animation runs entirely on the module’s RP2040 — no desktop process is required to drive the LEDs. The host app only turns the display on/off and sets brightness.
 
@@ -22,69 +22,78 @@ Official Framework **white** LED matrices use different hardware (IS31FL3741) an
 ## Repository layout
 
 ```
-firmware/funky_leds/   Arduino sketch (autonomous animation + control protocol)
-windows-app/           Python/Tk control UI for Windows
-docs/PROTOCOL.md       Serial command reference
+firmware/                 PlatformIO project (VS Code primary workflow)
+  platformio.ini
+  include/config.h
+  src/main.cpp
+windows-app/              .NET 8 WinForms system-tray app
+  FunkyLedsTray.sln
+  FunkyLedsTray/
+docs/PROTOCOL.md          Serial command reference
 ```
 
-## Flash the firmware
+## Flash the firmware (PlatformIO + VS Code)
 
 ### Requirements
 
-- [Arduino IDE 2.x](https://www.arduino.cc/en/software)
-- [Earle Philhower RP2040 core](https://github.com/earlephilhower/arduino-pico) (“Raspberry Pi Pico/RP2040” board package)
-- [Adafruit NeoPixel](https://github.com/adafruit/Adafruit_NeoPixel) library
+- [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE](https://platformio.org/install/ide?install=vscode) extension  
+  (or PlatformIO Core CLI: `pip install platformio`)
+- USB access to the module in BOOTSEL mode
 
-### Board settings
+### Build & upload
 
-Same as the stock RGB module firmware ([jschroedl.com/rgb-start](https://jschroedl.com/rgb-start/)):
+From the `firmware/` directory:
 
-- **Board:** Generic RP2040
-- **Boot Stage 2:** W25Q16JVxQ QSPI /4
-- **Flash Size:** 4MB (no FS)
-- **USB Stack:** Pico SDK
+```bash
+pio run                 # build
+pio run -t upload       # flash (module must be in BOOTSEL)
+pio device monitor      # 115200 serial monitor
+```
 
-### Steps
+In VS Code: open `firmware/`, pick env **`fw16_rgb`**, then use the PlatformIO Build / Upload buttons.
+
+### BOOTSEL steps
 
 1. Remove the RGB LED module from the laptop.
 2. Flip DIP switch **2** to **ON** (BOOTSEL).
 3. Reinsert the module — an `RPI-RP2` drive should appear.
-4. Open `firmware/funky_leds/funky_leds.ino` in Arduino IDE.
-5. Install the Adafruit NeoPixel library if needed.
-6. Select the board settings above, then **Sketch → Upload** (or copy the produced `.uf2` onto `RPI-RP2`).
-7. Remove the module, set DIP switch **2** back to **OFF**, and reinsert.
+4. Run `pio run -t upload` (or drag the `.uf2` from `.pio/build/fw16_rgb/` onto `RPI-RP2`).
+5. Remove the module, set DIP switch **2** back to **OFF**, and reinsert.
 
 On power-up the panel should immediately show a flowing rainbow. No host app is required.
 
+`platformio.ini` encodes the stock module settings: Generic RP2040, Earle Philhower core, Boot2 **W25Q16JVxQ QSPI /4**, 4MB flash with no filesystem, Adafruit NeoPixel.
+
 To restore OpenRGB/Adalight behavior later, reflash [adalight-multi-strip](https://github.com/corndog2000/adalight-multi-strip).
 
-## Windows control app
+## Windows tray app (.NET 8 WinForms)
 
-Simple UI: pick the COM port, connect, toggle LEDs on/off, drag brightness.
+Native system-tray controller (not Tk/web). Stack choice: **WinForms + tray icon + Win32 global hotkeys** — simple, native, and a good fit for a always-on control helper.
 
-### Run
+### Build & run (on Windows)
 
 ```bat
 cd windows-app
-py -m pip install -r requirements.txt
-py funky_leds_control.py
+dotnet build FunkyLedsTray\FunkyLedsTray.csproj -c Release
+dotnet run --project FunkyLedsTray\FunkyLedsTray.csproj -c Release
 ```
 
-Optional: `py funky_leds_control.py --port COM5`
+Or open `windows-app/FunkyLedsTray.sln` in Visual Studio.
 
-Or double-click `windows-app/run.bat`.
+The app lives in the tray, auto-connects to the module COM port, and exposes:
 
-Headless one-shot commands (any OS with Python):
+| Hotkey | Action |
+| --- | --- |
+| **Ctrl+Alt+Up** | Brightness up |
+| **Ctrl+Alt+Down** | Brightness down |
+| **Ctrl+Alt+Right** | LEDs on |
+| **Ctrl+Alt+Left** | LEDs off |
 
-```bat
-py cli.py --list
-py cli.py --port COM5 STATUS
-py cli.py --port COM5 BRIGHTNESS 64
-```
+Right-click the tray icon for the same actions, reconnect, and exit. See [`windows-app/README.md`](windows-app/README.md).
 
-The app sends the ASCII commands documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md) (`ON`, `OFF`, `BRIGHTNESS <0-255>`, `STATUS`).
+### Protocol
 
-### Serial from any OS
+ASCII lines over USB CDC @ 115200 — see [`docs/PROTOCOL.md`](docs/PROTOCOL.md):
 
 ```text
 ON
@@ -97,9 +106,11 @@ BOOT
 ## Notes
 
 - Default brightness is **40** (of 255) to stay near the input-module current budget. Raise carefully.
+- Tray brightness hotkeys step by **8**.
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
 ## Credits / references
 
 - Hardware & stock firmware: [Joe Schroedl](https://jschroedl.com/store/), [adalight-multi-strip](https://github.com/corndog2000/adalight-multi-strip), [RGB-LED-Matrix-Input-Module](https://github.com/corndog2000/RGB-LED-Matrix-Input-Module)
 - Framework input-module docs: [FrameworkComputer/InputModules](https://github.com/FrameworkComputer/InputModules)
+- PlatformIO + Earle Philhower: [arduino-pico PlatformIO docs](https://arduino-pico.readthedocs.io/en/stable/platformio.html)

@@ -4,6 +4,8 @@ USB CDC-ACM serial, **115200** baud, 8N1. Commands are single ASCII lines ending
 
 This protocol is **control only**. The flowing LED animation runs entirely on the RP2040; the host does not stream frames.
 
+The Windows tray app (`windows-app/FunkyLedsTray`) uses this protocol. Global hotkeys map to `ON` / `OFF` / `BRIGHTNESS` with a local step of 8.
+
 ## Commands
 
 | Command | Effect |
@@ -40,7 +42,16 @@ OK
 STATUS power=off brightness=80
 ```
 
-## Windows / Python host helpers
+## Host mapping (Windows tray)
+
+| Hotkey / menu | Command sent |
+| --- | --- |
+| Ctrl+Alt+Right / LEDs On | `ON` |
+| Ctrl+Alt+Left / LEDs Off | `OFF` |
+| Ctrl+Alt+Up / Brightness Up | `BRIGHTNESS <current+8>` |
+| Ctrl+Alt+Down / Brightness Down | `BRIGHTNESS <current-8>` |
+
+## Manual serial example
 
 ```python
 import serial
@@ -50,4 +61,4 @@ print(s.readline())
 print(s.readline())
 ```
 
-Use Device Manager (Windows) or `python -m serial.tools.list_ports` to find the COM port after flashing.
+Use Device Manager (Windows) or PlatformIO’s device list to find the COM port after flashing.
