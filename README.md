@@ -83,6 +83,23 @@ Work these in order:
    Also note the opposite case with DIP2 **OFF**: a new **USB Serial Device / COM port** means the deck USB path works and the MCU is alive — then the remaining issue is only BOOTSEL.  
    If **nothing** new appears for either DIP2 ON or OFF, the module is not enumerating on USB (bay/contact/power), not a PlatformIO problem.
 
+   **Watch plug events while reseating** (Admin PowerShell):
+
+   ```powershell
+   # Live PnP add/remove stream — leave running, then reseat the module
+   Register-WmiEvent -Class Win32_DeviceChangeEvent -SourceIdentifier ModPlug
+   while ($true) {
+     $e = Wait-Event -SourceIdentifier ModPlug
+     "{0:HH:mm:ss} EventType={1}" -f $e.TimeGenerated, $e.SourceEventArgs.NewEvent.EventType
+     Remove-Event -EventIdentifier $e.EventIdentifier
+   }
+   # EventType: 2 = Device Arrival, 3 = Device Removal (other values exist)
+   # Ctrl+C when done, then: Unregister-Event ModPlug
+   ```
+
+   Snapshot helpers: `pnputil /enum-devices /connected` before/after reseat; Event Viewer → *Applications and Services Logs → Microsoft → Windows → Kernel-PnP → Configuration* (and DeviceSetupManager); optional GUI: **USBTreeView** / USBView.  
+   **No arrival/removal at all** on reseat ⇒ Windows never saw a USB attach (deck power/USB path or dead module) — not a missing driver for `RPI-RP2`.
+
 5. **Bay / USB path**  
    Reseat firmly; try the **other** half-size bay. The input deck must normally be **fully populated** for module power (BIOS can override “Input Module Power”). There is no separate flash cable in the laptop — the pogo connector *is* USB.
 
