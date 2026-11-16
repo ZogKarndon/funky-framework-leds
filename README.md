@@ -124,6 +124,8 @@ Work these in order:
 5. **Bay / USB path**  
    Reseat firmly; try the **other** half-size bay. The input deck must normally be **fully populated** for module power (BIOS can override “Input Module Power”). There is no separate flash cable in the laptop — the pogo connector *is* USB.
 
+   **Dual-panel note (Framework 16):** On at least one FW16 setup, putting **only one** RGB panel into BOOTSEL (DIP2 ON) still enumerated as **COM** (run mode). Setting DIP2 ON for **both** input panels, then reseating, was what finally produced **`RPI-RP2`**. If a single module stubbornly shows COM despite DIP2 ON, put the sibling panel into BOOTSEL too (or ensure the deck is fully populated) and retry.
+
 6. **RGB vs official white matrix**  
    - **RGB (Joe Schroedl):** color NeoPixels; can show full rainbows; this repo targets those.  
    - **Official Framework white:** monochrome white/amber LEDs via IS31FL3741 (9×34); same DIP2→BOOTSEL idea, but **this firmware is wrong** for them.  
