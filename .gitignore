@@ -1,0 +1,25 @@
+# Arduino / Pico build artifacts
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.uf2
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+
+# Windows app local
+windows-app/*.log
