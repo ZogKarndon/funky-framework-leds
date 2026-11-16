@@ -111,13 +111,30 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
+// Vertical wave: a soft color crest travels along panel height (Y).
+// All columns share the envelope (horizontal band moving up/down the 8×36
+// matrix). Hue shifts slowly over time.
 static void renderFlowFrame() {
-  for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
-    for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-      const uint8_t hue =
-          (uint8_t)(y * 4 + x * 18 + (animPhase & 0xFF));
+  const uint8_t crest = (uint8_t)(animPhase & 0xFF);
+  const uint8_t baseHue = (uint8_t)((animPhase / 2) & 0xFF);
+
+  for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
+    const uint8_t yPhase =
+        (uint8_t)((uint16_t)y * 255 / (MATRIX_HEIGHT - 1));
+    uint8_t dist = (uint8_t)(yPhase - crest);
+    if (dist > 128) {
+      dist = (uint8_t)(256 - dist);  // circular distance on the strip
+    }
+    // Soft band ~±32 phase units wide; elsewhere off.
+    const uint8_t level =
+        dist < 32 ? (uint8_t)(255 - (uint16_t)dist * 255 / 32) : 0;
+
+    for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
       uint8_t r, g, b;
-      wheel(hue, r, g, b);
+      wheel((uint8_t)(baseHue + x * 8), r, g, b);
+      r = (uint8_t)((uint16_t)r * level / 255);
+      g = (uint8_t)((uint16_t)g * level / 255);
+      b = (uint8_t)((uint16_t)b * level / 255);
       strips[x].setPixelColor(y, r, g, b);
     }
   }

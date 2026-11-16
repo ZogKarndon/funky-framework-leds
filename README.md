@@ -1,6 +1,6 @@
 # funky-framework-leds
 
-Stand-alone flowing RGB animation for **Framework Laptop 16 RGB LED Matrix** modules (Joe Schroedl Rev 2 NeoPixel panels), plus a native Windows **system tray** app for power, brightness, and global hotkeys.
+Stand-alone **vertical wave** RGB animation for **Framework Laptop 16 RGB LED Matrix** modules (Joe Schroedl Rev 2 NeoPixel panels), plus a native Windows **system tray** app for power, brightness, and global hotkeys.
 
 The animation runs entirely on the module’s RP2040 — no desktop process is required to drive the LEDs. The host app only turns the display on/off and sets brightness.
 
@@ -105,7 +105,8 @@ BOOT
 
 ## Notes
 
-- Default brightness is **40** (of 255) to stay near the input-module current budget. Raise carefully.
+- Default brightness is **~30%** (`76` of 255). Raise carefully for the input-module current budget.
+- Animation: a soft color band travels **vertically** along the panel height (autonomous on-device).
 - Tray brightness hotkeys step by **8**.
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
