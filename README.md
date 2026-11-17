@@ -182,7 +182,7 @@ BOOT
 ## Notes
 
 - Default brightness is **16** (of 255); firmware and tray app hard-cap at **48**.
-- Animation: soft bars **3–5 px wide** (varies by row), **full panel height** (36), drift **horizontally** with gentle whole-bar sway.
+- Animation: soft bars **3–5 px wide** × **36 tall** (full height); crest advances in **X** (left↔right) with gentle whole-bar sway.
 - Tray brightness hotkeys step by **8** (clamped to 0–48).
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 

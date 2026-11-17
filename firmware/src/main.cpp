@@ -112,63 +112,55 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
 }
 
 // Soft full-height color bars on the 8×36 portrait grid.
-// X = strip/column (0..7), Y = LED along strip (0..35).
+//   X = strip/column (0..7)  — crest advances here (left↔right)
+//   Y = LED along strip (0..35) — bar spans ALL rows (full height)
 //
-// Geometry: crest travels in X; every row Y=0..35 is filled → bars are
-// full panel height (36) and only 3–5 px wide (half-width varies with Y).
-// Whole-bar sway + mild bend keep a coherent vertical silhouette.
-//
-// Color: hue is constant along Y. A previous baseHue+y term painted
-// horizontal color stripes that scrolled with time and read as “8 px
-// tall bands moving vertically” on the short axis.
-// Fixed-point: 1 px = 16 units.
+// Bug that looked like “scroll down”: bendPhase used (y + time), so the
+// brightness silhouette translated along Y every frame. Crest travel must
+// be a function of time (+ whole-bar sway) in X only; any Y bend is static.
+// Fixed-point: 1 px = 16 units. Band width 3–5 px.
 static void renderFlowFrame() {
-  const uint16_t period = (uint16_t)MATRIX_WIDTH * 16;
-  // Crest drifts across the 8 columns (wraps).
-  const uint16_t travel = (uint16_t)((animPhase * 3) % period);
-  // Whole-bar sway (±~0.5 px) — identical on every row.
-  const uint8_t globalPhase = (uint8_t)(animPhase / 2);
-  const int16_t globalSway =
-      (globalPhase < 128)
-          ? (int16_t)globalPhase / 16 - 4
-          : 4 - (int16_t)(globalPhase - 128) / 16;
-  const uint8_t barHue = (uint8_t)((animPhase / 2) & 0xFF);
+  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 8 columns
+  // Crest position in X — depends on time only (not y).
+  const uint16_t crestTravel = (uint16_t)((animPhase * 4) % xPeriod);
+  // Whole-bar horizontal sway — same offset for every row.
+  const uint8_t swayPhase = (uint8_t)(animPhase / 2);
+  const int16_t wholeBarSway =
+      (swayPhase < 128) ? (int16_t)swayPhase / 16 - 4
+                        : 4 - (int16_t)(swayPhase - 128) / 16;
+  const uint8_t barHue = (uint8_t)((animPhase / 3) & 0xFF);
 
   uint8_t r0, g0, b0;
   wheel(barHue, r0, g0, b0);
 
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
+    // Static shape along height only (no time term → no vertical scroll).
     const uint16_t yNorm =
         (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    // Mild bend across height (≲ half-period, ±~0.5 px).
-    const uint8_t bendPhase = (uint8_t)(yNorm + (animPhase / 4));
-    int16_t bendFp;
-    if (bendPhase < 128) {
-      bendFp = (int16_t)bendPhase / 16 - 4;
-    } else {
-      bendFp = 4 - (int16_t)(bendPhase - 128) / 16;
-    }
-
-    // Half-width 24..40 fp ⇒ full band width 3..5 px; slow Y variation.
+    // Fixed mild S-bend vs Y (±~0.5 px). Shape does not translate over time.
+    const int16_t staticBend =
+        (yNorm < 64) ? (int16_t)yNorm / 16 - 4
+                     : 4 - (int16_t)(yNorm - 64) / 16;
+    // Half-width 24..40 fp ⇒ full width 3..5 px; thicker/thinner by Y only.
     const uint16_t widthWave =
         (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
     const uint16_t halfW = (uint16_t)(24 + widthWave / 4);
 
-    int16_t center = (int16_t)travel + globalSway + bendFp;
-    while (center < 0) {
-      center += (int16_t)period;
+    int16_t crestX = (int16_t)crestTravel + wholeBarSway + staticBend;
+    while (crestX < 0) {
+      crestX += (int16_t)xPeriod;
     }
-    while (center >= (int16_t)period) {
-      center -= (int16_t)period;
+    while (crestX >= (int16_t)xPeriod) {
+      crestX -= (int16_t)xPeriod;
     }
 
     for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
       const int16_t xFp = (int16_t)x * 16 + 8;
-      int16_t d = xFp - center;
+      int16_t d = xFp - crestX;
       if (d < 0) {
         d = (int16_t)(-d);
       }
-      const int16_t dWrap = (int16_t)period - d;
+      const int16_t dWrap = (int16_t)xPeriod - d;
       if (dWrap < d) {
         d = dWrap;
       }
