@@ -7,14 +7,25 @@ Chosen stack: **WinForms + `NotifyIcon` + Win32 `RegisterHotKey`** — lightweig
 ## Features
 
 - Runs in the system tray (single-instance)
-- Auto-connects to the module’s USB CDC COM port
+- Auto-discovers **every** funky_leds USB CDC COM port (both Framework RGB panels) and fans out ON/OFF/brightness to all of them
 - Tray menu: on / off / brightness / reconnect / exit
-- Brightness range **0–48** (default **16**); hotkeys and menu clamp to that max
+- Brightness range **0–48** (default **16**); hotkeys and menu clamp to that max; step **1**
 - Global hotkeys:
   - **Ctrl+Alt+Up** — brightness up (+1)
   - **Ctrl+Alt+Down** — brightness down (−1)
   - **Ctrl+Alt+Right** — LEDs on
   - **Ctrl+Alt+Left** — LEDs off
+
+### Dual-panel discovery
+
+On connect / reconnect the tray app:
+
+1. Lists all COM ports
+2. Opens each briefly, sends `STATUS`, and keeps the port only if the reply matches funky_leds (`STATUS power=…` or the `FUNKY FW16 RGB` boot banner)
+3. Holds **all** matching ports open (typically two panels → two COMs)
+4. Fans out every control command (`ON` / `OFF` / `BRIGHTNESS` / `STATUS`) to every open port
+
+Non-matching serial devices are closed immediately and ignored.
 
 ## Build & run (Windows)
 

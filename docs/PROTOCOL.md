@@ -4,7 +4,7 @@ USB CDC-ACM serial, **115200** baud, 8N1. Commands are single ASCII lines ending
 
 This protocol is **control only**. The flowing LED animation runs entirely on the RP2040; the host does not stream frames.
 
-The Windows tray app (`windows-app/FunkyLedsTray`) uses this protocol. Global hotkeys map to `ON` / `OFF` / `BRIGHTNESS` with a local step of 1.
+The Windows tray app (`windows-app/FunkyLedsTray`) uses this protocol. Global hotkeys map to `ON` / `OFF` / `BRIGHTNESS` with a local step of 1. With two Framework panels, the tray discovers every matching COM port and fans out each command to all of them.
 
 ## Commands
 
