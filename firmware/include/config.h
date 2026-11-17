@@ -21,8 +21,8 @@ static const uint8_t BAND_COLS = 9;       // cols per strip / 9×4 block
 static const uint8_t STRIP_PINS[NUM_STRIPS] = {15, 14, 13, 12, 11, 10, 9, 8};
 
 // Soft default; hard cap keeps modules within a gentle current budget.
-static const uint8_t DEFAULT_BRIGHTNESS = 16;
-static const uint8_t MAX_BRIGHTNESS = 48;
+static const uint8_t DEFAULT_BRIGHTNESS = 8;
+static const uint8_t MAX_BRIGHTNESS = 40;
 
 static const unsigned long SERIAL_BAUD = 115200;
 static const uint16_t FRAME_MS = 33;  // ~30 FPS
