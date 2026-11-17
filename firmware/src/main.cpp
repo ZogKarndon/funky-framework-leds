@@ -10,6 +10,7 @@
 
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
+#include <math.h>
 #include <stdlib.h>
 #include <strings.h>
 #include "pico/bootrom.h"
@@ -135,66 +136,116 @@ static void setVisualPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b
   }
 }
 
-// Soft bars in VISUAL coordinates (9×32).
-// Crest advances in visual X only (+ whole-bar sway). Span all visual Y.
-// Y bend/width are static f(y) — never (y+time).
-// Fixed-point: 1 visual px = 16 units. Band width 3–5 px.
+// Pacifica-inspired soft bars on the visual 9×32 map.
+// Borrowed from cosmic-unicorn-animartrix pacifica.hpp:
+//   • three layered swells at different speeds / spatial freqs
+//   • standing-wave Y sway (sin(y)*sin(t)) — morphs in place, no Y-scroll
+//   • foam brightening at crests
+//   • deep-blue → sea-green → foam palette
+// Still: crests travel in visual X; span full visual Y; xyToStripPixel unchanged.
 static void renderFlowFrame() {
-  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 9 visual columns
-  const uint16_t crestTravel = (uint16_t)((animPhase * 4) % xPeriod);
-  const uint8_t swayPhase = (uint8_t)(animPhase / 2);
-  const int16_t wholeBarSway =
-      (swayPhase < 128) ? (int16_t)swayPhase / 16 - 4
-                        : 4 - (int16_t)(swayPhase - 128) / 16;
-  const uint8_t barHue = (uint8_t)((animPhase / 3) & 0xFF);
+  const float t = (float)animPhase * 0.045f;
+  const float widthF = (float)MATRIX_WIDTH;
 
-  uint8_t r0, g0, b0;
-  wheel(barHue, r0, g0, b0);
+  // Three Pacifica-like layers: speed (cols/unit-t), half-width (cols),
+  // weight, Y-sway amp (cols), Y spatial freq, sway time freq, phase.
+  const float speed[3] = {0.55f, -0.38f, 0.22f};
+  const float halfW[3] = {2.1f, 1.6f, 1.35f};  // ~3–5 px full width
+  const float weight[3] = {0.50f, 0.32f, 0.22f};
+  const float swayAmp[3] = {0.55f, 0.40f, 0.28f};
+  const float yFreq[3] = {0.22f, 0.35f, 0.48f};
+  const float swayT[3] = {0.70f, 1.15f, 1.60f};
+  const float phase[3] = {0.0f, 2.1f, 4.0f};
 
   for (uint8_t i = 0; i < NUM_STRIPS; i++) {
     strips[i].clear();
   }
 
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-    const uint16_t yNorm =
-        (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    const int16_t staticBend =
-        (yNorm < 64) ? (int16_t)yNorm / 16 - 4
-                     : 4 - (int16_t)(yNorm - 64) / 16;
-    const uint16_t widthWave =
-        (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
-    const uint16_t halfW = (uint16_t)(24 + widthWave / 4);
-
-    int16_t crestX = (int16_t)crestTravel + wholeBarSway + staticBend;
-    while (crestX < 0) {
-      crestX += (int16_t)xPeriod;
-    }
-    while (crestX >= (int16_t)xPeriod) {
-      crestX -= (int16_t)xPeriod;
-    }
+    const float yf = (float)y;
+    // Mild static width breathe along height (not time-translated).
+    const float widthScale = 1.0f + 0.15f * sinf(yf * 0.20f);
 
     for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
-      const int16_t xFp = (int16_t)x * 16 + 8;
-      int16_t d = xFp - crestX;
-      if (d < 0) {
-        d = (int16_t)(-d);
-      }
-      const int16_t dWrap = (int16_t)xPeriod - d;
-      if (dWrap < d) {
-        d = dWrap;
+      float depth = 0.0f;
+      float foam = 0.0f;
+
+      for (uint8_t L = 0; L < 3; L++) {
+        // Standing-wave sway: shape along Y morphs with time, does not scroll.
+        const float sway =
+            swayAmp[L] * sinf(yf * yFreq[L]) * sinf(t * swayT[L] + phase[L]);
+        float crest = fmodf(t * speed[L] * widthF + phase[L] * 1.3f + sway, widthF);
+        if (crest < 0.0f) {
+          crest += widthF;
+        }
+
+        float d = fabsf((float)x + 0.5f - crest);
+        const float wrap = widthF - d;
+        if (wrap < d) {
+          d = wrap;
+        }
+
+        const float hw = halfW[L] * widthScale;
+        float w = 0.0f;
+        if (d < hw) {
+          const float u = 1.0f - d / hw;
+          w = u * u * (3.0f - 2.0f * u);  // smoothstep
+        }
+        depth += weight[L] * w;
+        // Pacifica foam: lift near the crest peak.
+        const float crestLift = w * 0.65f + (L == 0 ? w * 0.20f : 0.0f) - 0.35f;
+        if (crestLift > 0.0f) {
+          foam += crestLift * 1.8f * weight[L];
+        }
       }
 
-      uint8_t level = 0;
-      if (d < (int16_t)halfW) {
-        level = (uint8_t)(255 - (uint16_t)d * 255 / halfW);
-      }
-      if (level == 0) {
+      if (depth < 0.02f && foam < 0.02f) {
         continue;
       }
+      if (depth > 1.0f) {
+        depth = 1.0f;
+      }
+      if (foam > 1.0f) {
+        foam = 1.0f;
+      }
 
-      const uint8_t r = (uint8_t)((uint16_t)r0 * level / 255);
-      const uint8_t g = (uint8_t)((uint16_t)g0 * level / 255);
-      const uint8_t b = (uint8_t)((uint16_t)b0 * level / 255);
+      // Deep navy → teal → seafoam (Pacifica stops), then foam whitening.
+      float shade = depth * (0.82f + 0.18f * (yf / (float)(MATRIX_HEIGHT - 1)));
+      shade += foam * 0.30f;
+      if (shade > 1.0f) {
+        shade = 1.0f;
+      }
+
+      float pr, pg, pb;
+      if (shade < 0.25f) {
+        const float f = shade / 0.25f;
+        pr = 0.02f + (0.00f - 0.02f) * f;
+        pg = 0.05f + (0.12f - 0.05f) * f;
+        pb = 0.14f + (0.36f - 0.14f) * f;
+      } else if (shade < 0.55f) {
+        const float f = (shade - 0.25f) / 0.30f;
+        pr = 0.00f + (0.02f - 0.00f) * f;
+        pg = 0.12f + (0.42f - 0.12f) * f;
+        pb = 0.36f + (0.50f - 0.36f) * f;
+      } else if (shade < 0.80f) {
+        const float f = (shade - 0.55f) / 0.25f;
+        pr = 0.02f + (0.20f - 0.02f) * f;
+        pg = 0.42f + (0.70f - 0.42f) * f;
+        pb = 0.50f + (0.62f - 0.50f) * f;
+      } else {
+        const float f = (shade - 0.80f) / 0.20f;
+        pr = 0.20f + (0.65f - 0.20f) * f;
+        pg = 0.70f + (0.90f - 0.70f) * f;
+        pb = 0.62f + (0.88f - 0.62f) * f;
+      }
+      pr += (1.0f - pr) * foam * 0.75f;
+      pg += (1.0f - pg) * foam * 0.80f;
+      pb += (1.0f - pb) * foam * 0.70f;
+
+      const float bri = 0.50f + 0.50f * shade;
+      const uint8_t r = (uint8_t)lroundf(pr * bri * 255.0f);
+      const uint8_t g = (uint8_t)lroundf(pg * bri * 255.0f);
+      const uint8_t b = (uint8_t)lroundf(pb * bri * 255.0f);
       setVisualPixel(x, y, r, g, b);
     }
   }
