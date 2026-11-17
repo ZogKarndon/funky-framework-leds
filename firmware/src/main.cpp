@@ -43,7 +43,6 @@ static void showAll();
 static void xyToStripPixel(uint8_t x, uint8_t y, uint8_t &strip, uint16_t &led);
 static void setVisualPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b);
 static void renderFlowFrame();
-static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b);
 static void handleLine(char *line);
 static void processSerial();
 static void replyOk();
@@ -92,25 +91,6 @@ static void clearAll() {
 static void showAll() {
   for (uint8_t i = 0; i < NUM_STRIPS; i++) {
     strips[i].show();
-  }
-}
-
-static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
-  pos = 255 - pos;
-  if (pos < 85) {
-    r = 255 - pos * 3;
-    g = 0;
-    b = pos * 3;
-  } else if (pos < 170) {
-    pos -= 85;
-    r = 0;
-    g = pos * 3;
-    b = 255 - pos * 3;
-  } else {
-    pos -= 170;
-    r = pos * 3;
-    g = 255 - pos * 3;
-    b = 0;
   }
 }
 
