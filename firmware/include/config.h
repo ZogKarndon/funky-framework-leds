@@ -10,13 +10,15 @@ static const uint16_t NUM_LEDS_PER_STRIP = 36;
 static const uint8_t NUM_STRIPS = 8;
 static const uint16_t TOTAL_LEDS = NUM_LEDS_PER_STRIP * NUM_STRIPS;
 
-// Visual grid: 8 wide × 36 tall (Framework portrait / Joe Rev 2).
-// Each NeoPixel strip is one vertical COLUMN (Adalight fills column-wise).
-//   X / width  = strip index           (0..7)  — horizontal
-//   Y / height = LED index along strip (0..35) — vertical
-// Pixel (x, y) → strips[x].setPixelColor(y, …)
-static const uint8_t MATRIX_WIDTH = NUM_STRIPS;
-static const uint8_t MATRIX_HEIGHT = NUM_LEDS_PER_STRIP;
+// Visual grid (on-device, after #5/#6 flash reports): 36 wide × 8 tall.
+// Each NeoPixel strip is one horizontal ROW — strip index is vertical.
+// Traveling in strip index scrolled top↔bottom on the laptop; traveling
+// along the LED index moves left↔right.
+//   X / width  = LED index along strip (0..35) — horizontal
+//   Y / height = strip index           (0..7)  — vertical
+// Pixel (x, y) → strips[y].setPixelColor(x, …)
+static const uint8_t MATRIX_WIDTH = NUM_LEDS_PER_STRIP;
+static const uint8_t MATRIX_HEIGHT = NUM_STRIPS;
 
 static const uint8_t STRIP_PINS[NUM_STRIPS] = {15, 14, 13, 12, 11, 10, 9, 8};
 
