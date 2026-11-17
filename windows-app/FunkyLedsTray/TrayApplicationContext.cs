@@ -116,10 +116,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (ok)
             {
+                var n = _leds.ConnectedCount;
                 _tray.ShowBalloonTip(
                     2000,
                     "Funky Framework LEDs",
-                    $"Connected to {_leds.PortName}",
+                    n == 1
+                        ? $"Connected to {_leds.PortName}"
+                        : $"Connected to {n} panels: {_leds.PortName}",
                     ToolTipIcon.Info);
             }
             else
@@ -127,7 +130,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _tray.ShowBalloonTip(
                     2500,
                     "Funky Framework LEDs",
-                    "No module found. Insert a panel and choose Reconnect.",
+                    "No modules found. Insert panel(s) and choose Reconnect.",
                     ToolTipIcon.Warning);
             }
         }
@@ -141,8 +144,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             {
                 var power = _leds.PowerOn ? "ON" : "OFF";
                 _statusItem.Text = $"Status: {power}, brightness {_leds.Brightness}";
-                _portItem.Text = $"Port: {_leds.PortName}";
-                _tray.Text = $"Funky LEDs · {power} · {_leds.Brightness}";
+                var n = _leds.ConnectedCount;
+                _portItem.Text = n == 1
+                    ? $"Port: {_leds.PortName}"
+                    : $"Ports ({n}): {_leds.PortName}";
+                _tray.Text = n == 1
+                    ? $"Funky LEDs · {power} · {_leds.Brightness}"
+                    : $"Funky LEDs · {n} panels · {power} · {_leds.Brightness}";
                 _onItem.Enabled = true;
                 _offItem.Enabled = true;
             }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
@@ -9,6 +10,7 @@ namespace FunkyLedsTray;
 
 /// <summary>
 /// Talks to funky_leds firmware over USB CDC (115200). Control only — no frame streaming.
+/// Discovers every matching COM port (dual Framework panels) and fans out commands to all.
 /// </summary>
 internal sealed class LedController : IDisposable
 {
@@ -20,19 +22,45 @@ internal sealed class LedController : IDisposable
     public const int BrightnessStep = 1;
     public const int MinBrightness = 0;
     public const int MaxBrightness = 48;
+    public const int DefaultBrightness = 16;
 
     private readonly object _gate = new();
-    private SerialPort? _port;
+    private readonly List<OpenPort> _ports = new();
     private readonly StringBuilder _rx = new();
 
-    public string? PortName { get; private set; }
-    public bool IsConnected
+    public string? PortName
     {
-        get { lock (_gate) return _port is { IsOpen: true }; }
+        get
+        {
+            lock (_gate)
+            {
+                return _ports.Count == 0
+                    ? null
+                    : string.Join(", ", _ports.Select(p => p.Name));
+            }
+        }
     }
 
+    public string[] ConnectedPorts
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _ports.Select(p => p.Name).ToArray();
+            }
+        }
+    }
+
+    public int ConnectedCount
+    {
+        get { lock (_gate) return _ports.Count; }
+    }
+
+    public bool IsConnected => ConnectedCount > 0;
+
     public bool PowerOn { get; private set; } = true;
-    public int Brightness { get; private set; } = 16;
+    public int Brightness { get; private set; } = DefaultBrightness;
 
     public event EventHandler? StateChanged;
 
@@ -41,79 +69,62 @@ internal sealed class LedController : IDisposable
         return SerialPort.GetPortNames().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    /// <summary>
+    /// Scan all COM ports, keep every port that answers as funky_leds (STATUS or boot banner),
+    /// and drop anything else. Replaces any previous connections.
+    /// </summary>
     public bool TryAutoConnect()
     {
+        Disconnect(raise: false);
+
+        var found = new List<OpenPort>();
         foreach (var name in ListCandidatePorts())
         {
-            if (TryConnect(name))
+            if (TryOpenIdentified(name, out var open) && open != null)
             {
-                return true;
+                found.Add(open);
             }
         }
-        return false;
-    }
 
-    public bool TryConnect(string portName)
-    {
-        Disconnect();
-        try
+        lock (_gate)
         {
-            var port = new SerialPort(portName, Baud)
-            {
-                NewLine = "\n",
-                Encoding = Encoding.ASCII,
-                ReadTimeout = 400,
-                WriteTimeout = 400,
-                DtrEnable = true,
-                RtsEnable = true,
-            };
-            port.Open();
-            Thread.Sleep(250);
-            port.DiscardInBuffer();
+            _ports.Clear();
+            _ports.AddRange(found);
+            _rx.Clear();
+        }
 
-            lock (_gate)
-            {
-                _port = port;
-                PortName = portName;
-                _rx.Clear();
-            }
-
-            Send("STATUS");
-            DrainFor(TimeSpan.FromMilliseconds(800));
+        if (found.Count == 0)
+        {
             RaiseStateChanged();
-            return true;
-        }
-        catch
-        {
-            Disconnect();
             return false;
         }
+
+        // Align every panel to the shared host brightness/power (default 16 / on).
+        FanOut(PowerOn ? "ON" : "OFF");
+        FanOut($"BRIGHTNESS {Brightness}");
+        FanOut("STATUS");
+        DrainAllFor(TimeSpan.FromMilliseconds(800));
+        RaiseStateChanged();
+        return true;
     }
 
-    public void Disconnect()
+    public void Disconnect() => Disconnect(raise: true);
+
+    private void Disconnect(bool raise)
     {
         lock (_gate)
         {
-            if (_port != null)
+            foreach (var open in _ports)
             {
-                try
-                {
-                    if (_port.IsOpen)
-                    {
-                        _port.Close();
-                    }
-                }
-                catch
-                {
-                    // ignore
-                }
-                _port.Dispose();
-                _port = null;
+                SafeClose(open.Port);
             }
-            PortName = null;
+            _ports.Clear();
             _rx.Clear();
         }
-        RaiseStateChanged();
+        if (raise)
+        {
+            RaiseStateChanged();
+        }
     }
 
     public void SetPower(bool on)
@@ -122,11 +133,10 @@ internal sealed class LedController : IDisposable
         {
             return;
         }
-        Send(on ? "ON" : "OFF");
-        DrainFor(TimeSpan.FromMilliseconds(500));
+        FanOut(on ? "ON" : "OFF");
+        DrainAllFor(TimeSpan.FromMilliseconds(500));
         if (PowerOn != on)
         {
-            // Firmware should echo STATUS; apply optimistically if not.
             PowerOn = on;
             RaiseStateChanged();
         }
@@ -149,8 +159,8 @@ internal sealed class LedController : IDisposable
             return;
         }
         value = Math.Clamp(value, MinBrightness, MaxBrightness);
-        Send($"BRIGHTNESS {value}");
-        DrainFor(TimeSpan.FromMilliseconds(500));
+        FanOut($"BRIGHTNESS {value}");
+        DrainAllFor(TimeSpan.FromMilliseconds(500));
         if (Brightness != value)
         {
             Brightness = value;
@@ -164,52 +174,149 @@ internal sealed class LedController : IDisposable
         {
             return;
         }
-        Send("STATUS");
-        DrainFor(TimeSpan.FromMilliseconds(500));
+        FanOut("STATUS");
+        DrainAllFor(TimeSpan.FromMilliseconds(500));
     }
 
-    private void Send(string line)
+    /// <summary>
+    /// Open one COM port and confirm it speaks funky_leds (STATUS line or boot banner).
+    /// Non-matching devices are closed immediately so dual-panel scan is safe on mixed COM lists.
+    /// </summary>
+    private static bool TryOpenIdentified(string portName, out OpenPort? open)
     {
-        lock (_gate)
+        open = null;
+        SerialPort? port = null;
+        try
         {
-            if (_port is not { IsOpen: true })
+            port = new SerialPort(portName, Baud)
             {
-                return;
+                NewLine = "\n",
+                Encoding = Encoding.ASCII,
+                ReadTimeout = 400,
+                WriteTimeout = 400,
+                DtrEnable = true,
+                RtsEnable = true,
+            };
+            port.Open();
+            Thread.Sleep(250);
+            port.DiscardInBuffer();
+            port.Write("STATUS\n");
+
+            var buf = new StringBuilder();
+            var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(800);
+            var identified = false;
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    if (port.BytesToRead > 0)
+                    {
+                        buf.Append(port.ReadExisting());
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+
+                var text = buf.ToString();
+                if (StatusRegex.IsMatch(text)
+                    || text.IndexOf("FUNKY FW16 RGB", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    identified = true;
+                    break;
+                }
+                Thread.Sleep(20);
             }
-            _port.Write(line.Trim() + "\n");
+
+            if (!identified)
+            {
+                SafeClose(port);
+                return false;
+            }
+
+            open = new OpenPort(portName, port);
+            return true;
+        }
+        catch
+        {
+            if (port != null)
+            {
+                SafeClose(port);
+            }
+            return false;
         }
     }
 
-    private void DrainFor(TimeSpan budget)
+    private void FanOut(string line)
+    {
+        var payload = line.Trim() + "\n";
+        lock (_gate)
+        {
+            for (var i = _ports.Count - 1; i >= 0; i--)
+            {
+                var open = _ports[i];
+                try
+                {
+                    if (!open.Port.IsOpen)
+                    {
+                        SafeClose(open.Port);
+                        _ports.RemoveAt(i);
+                        continue;
+                    }
+                    open.Port.Write(payload);
+                }
+                catch
+                {
+                    SafeClose(open.Port);
+                    _ports.RemoveAt(i);
+                }
+            }
+        }
+    }
+
+    private void DrainAllFor(TimeSpan budget)
     {
         var deadline = DateTime.UtcNow + budget;
         while (DateTime.UtcNow < deadline)
         {
-            string chunk;
+            var anyData = false;
             lock (_gate)
             {
-                if (_port is not { IsOpen: true })
+                for (var i = _ports.Count - 1; i >= 0; i--)
                 {
-                    return;
-                }
-                try
-                {
-                    chunk = _port.BytesToRead > 0 ? _port.ReadExisting() : string.Empty;
-                }
-                catch
-                {
-                    return;
+                    var open = _ports[i];
+                    try
+                    {
+                        if (!open.Port.IsOpen)
+                        {
+                            SafeClose(open.Port);
+                            _ports.RemoveAt(i);
+                            continue;
+                        }
+                        if (open.Port.BytesToRead <= 0)
+                        {
+                            continue;
+                        }
+                        _rx.Append(open.Port.ReadExisting());
+                        anyData = true;
+                    }
+                    catch
+                    {
+                        SafeClose(open.Port);
+                        _ports.RemoveAt(i);
+                    }
                 }
             }
 
-            if (chunk.Length == 0)
+            if (anyData)
+            {
+                ProcessBuffer();
+            }
+            else
             {
                 Thread.Sleep(20);
-                continue;
             }
-
-            _rx.Append(chunk);
-            ProcessBuffer();
         }
     }
 
@@ -238,13 +345,49 @@ internal sealed class LedController : IDisposable
             {
                 continue;
             }
+            // Shared UI state: last STATUS wins (panels should match after fan-out).
             PowerOn = m.Groups[1].Value.Equals("on", StringComparison.OrdinalIgnoreCase);
             Brightness = Math.Clamp(int.Parse(m.Groups[2].Value), MinBrightness, MaxBrightness);
             RaiseStateChanged();
         }
     }
 
+    private static void SafeClose(SerialPort port)
+    {
+        try
+        {
+            if (port.IsOpen)
+            {
+                port.Close();
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+        try
+        {
+            port.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
 
     public void Dispose() => Disconnect();
+
+    private sealed class OpenPort
+    {
+        public OpenPort(string name, SerialPort port)
+        {
+            Name = name;
+            Port = port;
+        }
+
+        public string Name { get; }
+        public SerialPort Port { get; }
+    }
 }
