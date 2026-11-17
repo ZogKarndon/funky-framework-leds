@@ -17,7 +17,7 @@ internal sealed class LedController : IDisposable
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public const int Baud = 115200;
-    public const int BrightnessStep = 8;
+    public const int BrightnessStep = 1;
     public const int MinBrightness = 0;
     public const int MaxBrightness = 48;
 
