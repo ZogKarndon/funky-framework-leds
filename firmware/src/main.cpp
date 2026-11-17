@@ -111,61 +111,56 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Soft full-height color bars on the 36×8 grid (strips = horizontal rows).
-// X = LED along strip (0..35) — left↔right on the laptop panel.
-// Y = strip index (0..7) — top↔bottom.
+// Soft full-height color bars on the 8×36 portrait grid.
+//   X = strip/column (0..7)  — crest advances here (left↔right)
+//   Y = LED along strip (0..35) — bar spans ALL rows (full height)
 //
-// #5/#6 assumed strips were columns (travel in strip index). On hardware
-// that scrolled top↔bottom; this remap travels along the LED axis instead.
-// Bars: 3–5 px wide, full height (all 8 rows), coherent sway, solid hue.
-// Fixed-point: 1 px = 16 units.
+// Bug that looked like “scroll down”: bendPhase used (y + time), so the
+// brightness silhouette translated along Y every frame. Crest travel must
+// be a function of time (+ whole-bar sway) in X only; any Y bend is static.
+// Fixed-point: 1 px = 16 units. Band width 3–5 px.
 static void renderFlowFrame() {
-  const uint16_t period = (uint16_t)MATRIX_WIDTH * 16;
-  // Crest drifts left↔right across 36 px (wraps).
-  const uint16_t travel = (uint16_t)(animPhase % period);
-  // Whole-bar sway (±~1 px) — identical on every row.
-  const uint8_t globalPhase = (uint8_t)(animPhase / 3);
-  const int16_t globalSway =
-      (globalPhase < 128)
-          ? (int16_t)globalPhase / 8 - 8
-          : 8 - (int16_t)(globalPhase - 128) / 8;
-  const uint8_t barHue = (uint8_t)((animPhase / 4) & 0xFF);
+  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 8 columns
+  // Crest position in X — depends on time only (not y).
+  const uint16_t crestTravel = (uint16_t)((animPhase * 4) % xPeriod);
+  // Whole-bar horizontal sway — same offset for every row.
+  const uint8_t swayPhase = (uint8_t)(animPhase / 2);
+  const int16_t wholeBarSway =
+      (swayPhase < 128) ? (int16_t)swayPhase / 16 - 4
+                        : 4 - (int16_t)(swayPhase - 128) / 16;
+  const uint8_t barHue = (uint8_t)((animPhase / 3) & 0xFF);
 
   uint8_t r0, g0, b0;
   wheel(barHue, r0, g0, b0);
 
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
+    // Static shape along height only (no time term → no vertical scroll).
     const uint16_t yNorm =
         (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    // Mild bend across the 8 rows (≲ half-period, ±~1 px).
-    const uint8_t bendPhase = (uint8_t)(yNorm + (animPhase / 5));
-    int16_t bendFp;
-    if (bendPhase < 128) {
-      bendFp = (int16_t)bendPhase / 8 - 8;
-    } else {
-      bendFp = 8 - (int16_t)(bendPhase - 128) / 8;
-    }
-
-    // Half-width 24..40 fp ⇒ full band width 3..5 px; slow Y variation.
+    // Fixed mild S-bend vs Y (±~0.5 px). Shape does not translate over time.
+    const int16_t staticBend =
+        (yNorm < 64) ? (int16_t)yNorm / 16 - 4
+                     : 4 - (int16_t)(yNorm - 64) / 16;
+    // Half-width 24..40 fp ⇒ full width 3..5 px; thicker/thinner by Y only.
     const uint16_t widthWave =
         (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
     const uint16_t halfW = (uint16_t)(24 + widthWave / 4);
 
-    int16_t center = (int16_t)travel + globalSway + bendFp;
-    while (center < 0) {
-      center += (int16_t)period;
+    int16_t crestX = (int16_t)crestTravel + wholeBarSway + staticBend;
+    while (crestX < 0) {
+      crestX += (int16_t)xPeriod;
     }
-    while (center >= (int16_t)period) {
-      center -= (int16_t)period;
+    while (crestX >= (int16_t)xPeriod) {
+      crestX -= (int16_t)xPeriod;
     }
 
     for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
       const int16_t xFp = (int16_t)x * 16 + 8;
-      int16_t d = xFp - center;
+      int16_t d = xFp - crestX;
       if (d < 0) {
         d = (int16_t)(-d);
       }
-      const int16_t dWrap = (int16_t)period - d;
+      const int16_t dWrap = (int16_t)xPeriod - d;
       if (dWrap < d) {
         d = dWrap;
       }
@@ -178,8 +173,7 @@ static void renderFlowFrame() {
       const uint8_t r = (uint8_t)((uint16_t)r0 * level / 255);
       const uint8_t g = (uint8_t)((uint16_t)g0 * level / 255);
       const uint8_t b = (uint8_t)((uint16_t)b0 * level / 255);
-      // Row strip y, LED x — horizontal travel along the strip.
-      strips[y].setPixelColor(x, r, g, b);
+      strips[x].setPixelColor(y, r, g, b);
     }
   }
   showAll();
