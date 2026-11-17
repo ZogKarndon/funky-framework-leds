@@ -183,7 +183,7 @@ BOOT
 
 - Default brightness is **16** (of 255); firmware and tray app hard-cap at **48**.
 - Animation: Pacifica-inspired layered soft bars (~3–5 px) on the visual 9×32 map — multi-swell horizontal drift, standing-wave sway, foam crests (via `xyToStripPixel`).
-- Tray brightness hotkeys step by **8** (clamped to 0–48).
+- Tray brightness hotkeys step by **1** (clamped to 0–48).
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
 ## Credits / references
