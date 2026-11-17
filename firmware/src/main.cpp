@@ -238,7 +238,7 @@ static void handleLine(char *line) {
     char *end = nullptr;
     long v = strtol(arg, &end, 10);
     if (end == arg || v < 0 || v > MAX_BRIGHTNESS) {
-      replyErr("brightness must be 0-255");
+      replyErr("brightness must be 0-48");
       return;
     }
     brightness = (uint8_t)v;
@@ -252,7 +252,7 @@ static void handleLine(char *line) {
     return;
   }
   if (strcasecmp(line, "HELP") == 0) {
-    Serial.println(F("Commands: ON | OFF | BRIGHTNESS <0-255> | STATUS | BOOT | HELP"));
+    Serial.println(F("Commands: ON | OFF | BRIGHTNESS <0-48> | STATUS | BOOT | HELP"));
     return;
   }
 

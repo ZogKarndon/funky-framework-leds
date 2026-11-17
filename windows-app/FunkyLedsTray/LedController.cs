@@ -19,7 +19,7 @@ internal sealed class LedController : IDisposable
     public const int Baud = 115200;
     public const int BrightnessStep = 8;
     public const int MinBrightness = 0;
-    public const int MaxBrightness = 255;
+    public const int MaxBrightness = 48;
 
     private readonly object _gate = new();
     private SerialPort? _port;
@@ -32,7 +32,7 @@ internal sealed class LedController : IDisposable
     }
 
     public bool PowerOn { get; private set; } = true;
-    public int Brightness { get; private set; } = 76; // ~30% of 255
+    public int Brightness { get; private set; } = 16;
 
     public event EventHandler? StateChanged;
 
@@ -239,7 +239,7 @@ internal sealed class LedController : IDisposable
                 continue;
             }
             PowerOn = m.Groups[1].Value.Equals("on", StringComparison.OrdinalIgnoreCase);
-            Brightness = int.Parse(m.Groups[2].Value);
+            Brightness = Math.Clamp(int.Parse(m.Groups[2].Value), MinBrightness, MaxBrightness);
             RaiseStateChanged();
         }
     }

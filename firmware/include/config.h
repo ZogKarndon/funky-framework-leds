@@ -16,10 +16,10 @@ static const uint8_t MATRIX_HEIGHT = NUM_LEDS_PER_STRIP;
 
 static const uint8_t STRIP_PINS[NUM_STRIPS] = {15, 14, 13, 12, 11, 10, 9, 8};
 
-// ~30% of full NeoPixel scale. Host can raise brightness intentionally.
-static const uint8_t DEFAULT_BRIGHTNESS = (255 * 30) / 100;  // 76
-static const uint8_t MAX_BRIGHTNESS = 255;
+// Soft default; hard cap keeps modules within a gentle current budget.
+static const uint8_t DEFAULT_BRIGHTNESS = 16;
+static const uint8_t MAX_BRIGHTNESS = 48;
 
 static const unsigned long SERIAL_BAUD = 115200;
-static const uint16_t FRAME_MS = 33;  // ~30 FPS vertical wave
+static const uint16_t FRAME_MS = 33;  // ~30 FPS
 

@@ -9,6 +9,7 @@ Chosen stack: **WinForms + `NotifyIcon` + Win32 `RegisterHotKey`** — lightweig
 - Runs in the system tray (single-instance)
 - Auto-connects to the module’s USB CDC COM port
 - Tray menu: on / off / brightness / reconnect / exit
+- Brightness range **0–48** (default **16**); hotkeys and menu clamp to that max
 - Global hotkeys:
   - **Ctrl+Alt+Up** — brightness up (+8)
   - **Ctrl+Alt+Down** — brightness down (−8)
