@@ -1,7 +1,7 @@
 # Firmware (PlatformIO)
 
 Stand-alone flowing RGB animation + USB CDC power/brightness control for
-Framework 16 RGB LED Matrix modules (8×36 NeoPixels on RP2040).
+Framework 16 RGB LED Matrix modules (9×32 NeoPixels on RP2040).
 
 ## Layout
 

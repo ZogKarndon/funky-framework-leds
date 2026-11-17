@@ -4,7 +4,7 @@ Stand-alone **horizontal soft-band** RGB animation for **Framework Laptop 16 RGB
 
 The animation runs entirely on the module’s RP2040 — no desktop process is required to drive the LEDs. The host app only turns the display on/off and sets brightness.
 
-> This repository started empty. Hardware pinout and board settings match the stock [adalight-multi-strip](https://github.com/corndog2000/adalight-multi-strip) firmware used by these RGB modules.
+> Stock [adalight-multi-strip](https://github.com/corndog2000/adalight-multi-strip) still documents **8×36** on GPIO 15..8. On-panel inspection of these RGB modules is **9×32** (same 288 LEDs) with the 9th data line on **GPIO 7** (MCU nets D7..D15).
 
 ## Hardware
 
@@ -12,8 +12,8 @@ The animation runs entirely on the module’s RP2040 — no desktop process is r
 | --- | --- |
 | Module | Framework 16 RGB LED Matrix (third-party NeoPixel) |
 | MCU | RP2040 |
-| Layout | 8×36 portrait grid (8 strip/columns × 36 LEDs/rows; 288 total) |
-| Data pins | GPIO 15, 14, 13, 12, 11, 10, 9, 8 |
+| Layout | **9×32** portrait grid (9 strip/columns × 32 LEDs/rows; 288 total) |
+| Data pins | GPIO **15, 14, 13, 12, 11, 10, 9, 8, 7** (column 0 → 15 … column 8 → 7) |
 | Pixel order | GRB @ 800 kHz |
 | Host link | USB CDC serial @ 115200 |
 
@@ -182,7 +182,7 @@ BOOT
 ## Notes
 
 - Default brightness is **16** (of 255); firmware and tray app hard-cap at **48**.
-- Animation: soft bars **3–5 px wide** × **36 tall** (full height); crest advances in **X** (left↔right) with gentle whole-bar sway.
+- Animation: soft bars **3–5 px wide** × **32 tall** (full height); crest advances in **X** across 9 columns with gentle whole-bar sway.
 - Tray brightness hotkeys step by **8** (clamped to 0–48).
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
