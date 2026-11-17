@@ -26,7 +26,6 @@ Adafruit_NeoPixel strips[NUM_STRIPS] = {
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[5], NEO_TYPE),
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[6], NEO_TYPE),
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[7], NEO_TYPE),
-  Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[8], NEO_TYPE),
 };
 
 static bool powerOn = true;
@@ -40,6 +39,8 @@ static uint8_t lineLen = 0;
 static void applyBrightness();
 static void clearAll();
 static void showAll();
+static void xyToStripPixel(uint8_t x, uint8_t y, uint8_t &strip, uint16_t &led);
+static void setVisualPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b);
 static void renderFlowFrame();
 static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b);
 static void handleLine(char *line);
@@ -112,18 +113,35 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Soft full-height color bars on the 9×32 portrait grid.
-//   X = strip/column (0..8)  — crest advances here (left↔right)
-//   Y = LED along strip (0..31) — bar spans ALL rows (full height 32)
+// Map visual (x,y) on the 9×32 panel to (strip, led) on 8×36 wiring.
+// Each strip is one 9×4 band; bands stack in Y. See docs/LED_MAP.md.
 //
-// Crest = f(time) in X only (+ whole-bar sway). Y bend/width are static
-// f(y) — never (y+time), which previously scrolled the silhouette down.
-// Fixed-point: 1 px = 16 units. Band width 3–5 px.
+// Column 0 on every strip uses LEDs 0, 8, 17, 26 (user-verified). Other
+// columns are the same row starts + x. Row starts are NOT a uniform *9
+// pitch (that would be 0,9,18,27); they follow the physical chain folds.
+static void xyToStripPixel(uint8_t x, uint8_t y, uint8_t &strip, uint16_t &led) {
+  static const uint8_t kRowStart[BAND_ROWS] = {0, 8, 17, 26};
+  strip = (uint8_t)(y / BAND_ROWS);
+  const uint8_t localY = (uint8_t)(y % BAND_ROWS);
+  led = (uint16_t)kRowStart[localY] + x;
+}
+
+static void setVisualPixel(uint8_t x, uint8_t y, uint8_t r, uint8_t g, uint8_t b) {
+  uint8_t strip;
+  uint16_t led;
+  xyToStripPixel(x, y, strip, led);
+  if (strip < NUM_STRIPS && led < NUM_LEDS_PER_STRIP) {
+    strips[strip].setPixelColor(led, r, g, b);
+  }
+}
+
+// Soft bars in VISUAL coordinates (9×32).
+// Crest advances in visual X only (+ whole-bar sway). Span all visual Y.
+// Y bend/width are static f(y) — never (y+time).
+// Fixed-point: 1 visual px = 16 units. Band width 3–5 px.
 static void renderFlowFrame() {
-  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 9 columns
-  // Crest position in X — depends on time only (not y).
+  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 9 visual columns
   const uint16_t crestTravel = (uint16_t)((animPhase * 4) % xPeriod);
-  // Whole-bar horizontal sway — same offset for every row.
   const uint8_t swayPhase = (uint8_t)(animPhase / 2);
   const int16_t wholeBarSway =
       (swayPhase < 128) ? (int16_t)swayPhase / 16 - 4
@@ -133,15 +151,16 @@ static void renderFlowFrame() {
   uint8_t r0, g0, b0;
   wheel(barHue, r0, g0, b0);
 
+  for (uint8_t i = 0; i < NUM_STRIPS; i++) {
+    strips[i].clear();
+  }
+
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-    // Static shape along height only (no time term → no vertical scroll).
     const uint16_t yNorm =
         (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    // Fixed mild S-bend vs Y (±~0.5 px).
     const int16_t staticBend =
         (yNorm < 64) ? (int16_t)yNorm / 16 - 4
                      : 4 - (int16_t)(yNorm - 64) / 16;
-    // Half-width 24..40 fp ⇒ full width 3..5 px; thicker/thinner by Y only.
     const uint16_t widthWave =
         (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
     const uint16_t halfW = (uint16_t)(24 + widthWave / 4);
@@ -169,11 +188,14 @@ static void renderFlowFrame() {
       if (d < (int16_t)halfW) {
         level = (uint8_t)(255 - (uint16_t)d * 255 / halfW);
       }
+      if (level == 0) {
+        continue;
+      }
 
       const uint8_t r = (uint8_t)((uint16_t)r0 * level / 255);
       const uint8_t g = (uint8_t)((uint16_t)g0 * level / 255);
       const uint8_t b = (uint8_t)((uint16_t)b0 * level / 255);
-      strips[x].setPixelColor(y, r, g, b);
+      setVisualPixel(x, y, r, g, b);
     }
   }
   showAll();
