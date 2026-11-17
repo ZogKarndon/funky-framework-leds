@@ -26,6 +26,7 @@ Adafruit_NeoPixel strips[NUM_STRIPS] = {
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[5], NEO_TYPE),
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[6], NEO_TYPE),
   Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[7], NEO_TYPE),
+  Adafruit_NeoPixel(NUM_LEDS_PER_STRIP, STRIP_PINS[8], NEO_TYPE),
 };
 
 static bool powerOn = true;
@@ -111,16 +112,15 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Soft full-height color bars on the 8×36 portrait grid.
-//   X = strip/column (0..7)  — crest advances here (left↔right)
-//   Y = LED along strip (0..35) — bar spans ALL rows (full height)
+// Soft full-height color bars on the 9×32 portrait grid.
+//   X = strip/column (0..8)  — crest advances here (left↔right)
+//   Y = LED along strip (0..31) — bar spans ALL rows (full height 32)
 //
-// Bug that looked like “scroll down”: bendPhase used (y + time), so the
-// brightness silhouette translated along Y every frame. Crest travel must
-// be a function of time (+ whole-bar sway) in X only; any Y bend is static.
+// Crest = f(time) in X only (+ whole-bar sway). Y bend/width are static
+// f(y) — never (y+time), which previously scrolled the silhouette down.
 // Fixed-point: 1 px = 16 units. Band width 3–5 px.
 static void renderFlowFrame() {
-  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 8 columns
+  const uint16_t xPeriod = (uint16_t)MATRIX_WIDTH * 16;  // 9 columns
   // Crest position in X — depends on time only (not y).
   const uint16_t crestTravel = (uint16_t)((animPhase * 4) % xPeriod);
   // Whole-bar horizontal sway — same offset for every row.
@@ -137,7 +137,7 @@ static void renderFlowFrame() {
     // Static shape along height only (no time term → no vertical scroll).
     const uint16_t yNorm =
         (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    // Fixed mild S-bend vs Y (±~0.5 px). Shape does not translate over time.
+    // Fixed mild S-bend vs Y (±~0.5 px).
     const int16_t staticBend =
         (yNorm < 64) ? (int16_t)yNorm / 16 - 4
                      : 4 - (int16_t)(yNorm - 64) / 16;
