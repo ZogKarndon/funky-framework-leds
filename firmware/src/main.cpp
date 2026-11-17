@@ -111,40 +111,48 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Soft full-height color bars travel horizontally (X = strips 0..7).
-// A low-frequency bend along Y plus a slow whole-bar sway keep the
-// silhouette a coherent vertical bar — not a multi-period snake.
-// Half-width stays ≥1 column (band ≥2 px) and varies gently with Y.
-// Fixed-point: 1 column = 16 units.
+// Soft full-height color bars on the 8×36 portrait grid.
+// X = strip/column (0..7), Y = LED along strip (0..35).
+//
+// Geometry: crest travels in X; every row Y=0..35 is filled → bars are
+// full panel height (36) and only 3–5 px wide (half-width varies with Y).
+// Whole-bar sway + mild bend keep a coherent vertical silhouette.
+//
+// Color: hue is constant along Y. A previous baseHue+y term painted
+// horizontal color stripes that scrolled with time and read as “8 px
+// tall bands moving vertically” on the short axis.
+// Fixed-point: 1 px = 16 units.
 static void renderFlowFrame() {
   const uint16_t period = (uint16_t)MATRIX_WIDTH * 16;
-  // Crest drifts across width (wraps).
-  const uint16_t travel = (uint16_t)((animPhase * 2) % period);
-  // Whole-bar sway (±~0.5 col) — same for every row so the bar moves as one.
+  // Crest drifts across the 8 columns (wraps).
+  const uint16_t travel = (uint16_t)((animPhase * 3) % period);
+  // Whole-bar sway (±~0.5 px) — identical on every row.
   const uint8_t globalPhase = (uint8_t)(animPhase / 2);
   const int16_t globalSway =
       (globalPhase < 128)
           ? (int16_t)globalPhase / 16 - 4
           : 4 - (int16_t)(globalPhase - 128) / 16;
-  const uint8_t baseHue = (uint8_t)((animPhase / 3) & 0xFF);
+  const uint8_t barHue = (uint8_t)((animPhase / 2) & 0xFF);
+
+  uint8_t r0, g0, b0;
+  wheel(barHue, r0, g0, b0);
 
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-    // At most ~half a bend across the full height (not a wiggly path).
     const uint16_t yNorm =
         (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
-    const uint8_t bendPhase =
-        (uint8_t)(yNorm + (animPhase / 4));
+    // Mild bend across height (≲ half-period, ±~0.5 px).
+    const uint8_t bendPhase = (uint8_t)(yNorm + (animPhase / 4));
     int16_t bendFp;
     if (bendPhase < 128) {
-      bendFp = (int16_t)bendPhase / 16 - 4;  // -4 .. ~4
+      bendFp = (int16_t)bendPhase / 16 - 4;
     } else {
       bendFp = 4 - (int16_t)(bendPhase - 128) / 16;
     }
 
-    // Half-width 16..24 fp ⇒ full band 2..3 columns; slow Y variation.
+    // Half-width 24..40 fp ⇒ full band width 3..5 px; slow Y variation.
     const uint16_t widthWave =
         (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
-    const uint16_t halfW = (uint16_t)(16 + widthWave / 8);
+    const uint16_t halfW = (uint16_t)(24 + widthWave / 4);
 
     int16_t center = (int16_t)travel + globalSway + bendFp;
     while (center < 0) {
@@ -170,12 +178,9 @@ static void renderFlowFrame() {
         level = (uint8_t)(255 - (uint16_t)d * 255 / halfW);
       }
 
-      uint8_t r, g, b;
-      wheel((uint8_t)(baseHue + y), r, g, b);
-      r = (uint8_t)((uint16_t)r * level / 255);
-      g = (uint8_t)((uint16_t)g * level / 255);
-      b = (uint8_t)((uint16_t)b * level / 255);
-      // (x, y) → strip x, LED y — X horizontal, Y vertical.
+      const uint8_t r = (uint8_t)((uint16_t)r0 * level / 255);
+      const uint8_t g = (uint8_t)((uint16_t)g0 * level / 255);
+      const uint8_t b = (uint8_t)((uint16_t)b0 * level / 255);
       strips[x].setPixelColor(y, r, g, b);
     }
   }
