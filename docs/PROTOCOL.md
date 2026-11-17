@@ -12,7 +12,7 @@ The Windows tray app (`windows-app/FunkyLedsTray`) uses this protocol. Global ho
 | --- | --- |
 | `ON` | Enable display / resume animation |
 | `OFF` | Blank all LEDs and pause animation |
-| `BRIGHTNESS <0-255>` | Set NeoPixel brightness (aliases: `BRIGHT <n>`) |
+| `BRIGHTNESS <0-48>` | Set NeoPixel brightness (aliases: `BRIGHT <n>`; hard-capped) |
 | `STATUS` | Report power + brightness (alias: `GET`) |
 | `BOOT` | Reboot into UF2 bootloader (alias: `BOOTLOADER`) |
 | `HELP` | List commands |
@@ -22,7 +22,7 @@ Commands are case-insensitive.
 ## Responses
 
 - `OK` — command accepted
-- `STATUS power=on|off brightness=<0-255>` — after `STATUS`, `ON`, `OFF`, or brightness changes; also printed once at boot
+- `STATUS power=on|off brightness=<0-48>` — after `STATUS`, `ON`, `OFF`, or brightness changes; also printed once at boot
 - `ERR <message>` — bad input
 - Boot banner: `FUNKY FW16 RGB ready`
 
@@ -31,15 +31,15 @@ Commands are case-insensitive.
 ```text
 > ON
 OK
-STATUS power=on brightness=76
+STATUS power=on brightness=16
 
-> BRIGHTNESS 80
+> BRIGHTNESS 32
 OK
-STATUS power=on brightness=80
+STATUS power=on brightness=32
 
 > OFF
 OK
-STATUS power=off brightness=80
+STATUS power=off brightness=32
 ```
 
 ## Host mapping (Windows tray)
@@ -56,7 +56,7 @@ STATUS power=off brightness=80
 ```python
 import serial
 s = serial.Serial("COM5", 115200, timeout=1)
-s.write(b"BRIGHTNESS 64\n")
+s.write(b"BRIGHTNESS 32\n")
 print(s.readline())
 print(s.readline())
 ```

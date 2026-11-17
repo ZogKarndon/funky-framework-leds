@@ -174,16 +174,16 @@ ASCII lines over USB CDC @ 115200 — see [`docs/PROTOCOL.md`](docs/PROTOCOL.md)
 ```text
 ON
 OFF
-BRIGHTNESS 64
+BRIGHTNESS 32
 STATUS
 BOOT
 ```
 
 ## Notes
 
-- Default brightness is **~30%** (`76` of 255). Raise carefully for the input-module current budget.
+- Default brightness is **16** (of 255); firmware and tray app hard-cap at **48**.
 - Animation: soft full-height color bands travel **horizontally**, with width ≥2 px varying by row and a gentle sway (autonomous on-device).
-- Tray brightness hotkeys step by **8**.
+- Tray brightness hotkeys step by **8** (clamped to 0–48).
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
 ## Credits / references
