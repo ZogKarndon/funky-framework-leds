@@ -31,7 +31,7 @@ Commands are case-insensitive.
 ```text
 > ON
 OK
-STATUS power=on brightness=40
+STATUS power=on brightness=76
 
 > BRIGHTNESS 80
 OK

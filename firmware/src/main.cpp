@@ -111,13 +111,63 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
+// Full-height soft color bands travel horizontally across the 8×36 panel.
+// Per-row half-width varies with Y (≥1 column ⇒ band ≥2 px wide). A slow
+// Y-dependent sway offsets the crest so the ribbon undulates as it drifts.
+// Fixed-point: 1 column = 16 units.
 static void renderFlowFrame() {
-  for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
-    for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-      const uint8_t hue =
-          (uint8_t)(y * 4 + x * 18 + (animPhase & 0xFF));
+  const uint16_t period = (uint16_t)MATRIX_WIDTH * 16;
+  // Drift crest across the width (wraps).
+  const uint16_t travel = (uint16_t)((animPhase * 2) % period);
+  const uint8_t baseHue = (uint8_t)((animPhase / 3) & 0xFF);
+
+  for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
+    // Gentle sway: ±~1.25 columns, phase varies with height + time.
+    const uint8_t swayPhase =
+        (uint8_t)(y * 11 + (animPhase / 2));
+    int16_t swayFp;
+    if (swayPhase < 128) {
+      swayFp = (int16_t)swayPhase / 5 - 12;  // -12 .. ~13
+    } else {
+      swayFp = 12 - (int16_t)(swayPhase - 128) / 5;
+    }
+
+    // Half-width 16..32 fp units ⇒ full band width 2..4 columns, varies by Y.
+    const uint8_t widthPhase = (uint8_t)(y * 9 + animPhase / 4);
+    const uint16_t halfW =
+        (uint16_t)(16 + (widthPhase < 128 ? widthPhase : (uint8_t)(255 - widthPhase)) / 8);
+
+    int16_t center = (int16_t)travel + swayFp;
+    // Normalize center into [0, period).
+    while (center < 0) {
+      center += (int16_t)period;
+    }
+    while (center >= (int16_t)period) {
+      center -= (int16_t)period;
+    }
+
+    for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
+      const int16_t xFp = (int16_t)x * 16 + 8;  // column center
+      int16_t d = xFp - center;
+      if (d < 0) {
+        d = (int16_t)(-d);
+      }
+      // Circular distance across the wrapped panel.
+      const int16_t dWrap = (int16_t)period - d;
+      if (dWrap < d) {
+        d = dWrap;
+      }
+
+      uint8_t level = 0;
+      if (d < (int16_t)halfW) {
+        level = (uint8_t)(255 - (uint16_t)d * 255 / halfW);
+      }
+
       uint8_t r, g, b;
-      wheel(hue, r, g, b);
+      wheel((uint8_t)(baseHue + y), r, g, b);
+      r = (uint8_t)((uint16_t)r * level / 255);
+      g = (uint8_t)((uint16_t)g * level / 255);
+      b = (uint8_t)((uint16_t)b * level / 255);
       strips[x].setPixelColor(y, r, g, b);
     }
   }

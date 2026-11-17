@@ -32,7 +32,7 @@ internal sealed class LedController : IDisposable
     }
 
     public bool PowerOn { get; private set; } = true;
-    public int Brightness { get; private set; } = 40;
+    public int Brightness { get; private set; } = 76; // ~30% of 255
 
     public event EventHandler? StateChanged;
 
