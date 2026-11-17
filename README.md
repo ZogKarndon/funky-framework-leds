@@ -12,7 +12,7 @@ The animation runs entirely on the module’s RP2040 — no desktop process is r
 | --- | --- |
 | Module | Framework 16 RGB LED Matrix (third-party NeoPixel) |
 | MCU | RP2040 |
-| Layout | 8×36 portrait grid (8 strips/columns × 36 LEDs/rows; 288 total) |
+| Layout | 8×36 portrait grid (8 strip/columns × 36 LEDs/rows; 288 total) |
 | Data pins | GPIO 15, 14, 13, 12, 11, 10, 9, 8 |
 | Pixel order | GRB @ 800 kHz |
 | Host link | USB CDC serial @ 115200 |
@@ -182,7 +182,7 @@ BOOT
 ## Notes
 
 - Default brightness is **16** (of 255); firmware and tray app hard-cap at **48**.
-- Animation: soft **vertical bars** (full panel height) drift **horizontally** across the 8 columns, with gentle whole-bar sway, a mild bend, and width ≥2 px varying by row.
+- Animation: soft bars **3–5 px wide** (varies by row), **full panel height** (36), drift **horizontally** with gentle whole-bar sway.
 - Tray brightness hotkeys step by **8** (clamped to 0–48).
 - `BOOT` / `BOOTLOADER` jumps to the UF2 bootloader without flipping the DIP switch (handy for reflashing).
 
