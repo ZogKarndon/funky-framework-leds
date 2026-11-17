@@ -10,7 +10,10 @@ static const uint16_t NUM_LEDS_PER_STRIP = 36;
 static const uint8_t NUM_STRIPS = 8;
 static const uint16_t TOTAL_LEDS = NUM_LEDS_PER_STRIP * NUM_STRIPS;
 
-// Columns = strips; rows = LEDs along each strip.
+// Visual grid (portrait, matches Framework LED Matrix form factor):
+//   X / width  = strip index          (0..7)  — horizontal
+//   Y / height = LED index along strip (0..35) — vertical
+// Pixel (x, y) → strips[x].setPixelColor(y, …)
 static const uint8_t MATRIX_WIDTH = NUM_STRIPS;
 static const uint8_t MATRIX_HEIGHT = NUM_LEDS_PER_STRIP;
 

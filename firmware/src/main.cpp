@@ -111,34 +111,42 @@ static void wheel(uint8_t pos, uint8_t &r, uint8_t &g, uint8_t &b) {
   }
 }
 
-// Full-height soft color bands travel horizontally across the 8×36 panel.
-// Per-row half-width varies with Y (≥1 column ⇒ band ≥2 px wide). A slow
-// Y-dependent sway offsets the crest so the ribbon undulates as it drifts.
+// Soft full-height color bars travel horizontally (X = strips 0..7).
+// A low-frequency bend along Y plus a slow whole-bar sway keep the
+// silhouette a coherent vertical bar — not a multi-period snake.
+// Half-width stays ≥1 column (band ≥2 px) and varies gently with Y.
 // Fixed-point: 1 column = 16 units.
 static void renderFlowFrame() {
   const uint16_t period = (uint16_t)MATRIX_WIDTH * 16;
-  // Drift crest across the width (wraps).
+  // Crest drifts across width (wraps).
   const uint16_t travel = (uint16_t)((animPhase * 2) % period);
+  // Whole-bar sway (±~0.5 col) — same for every row so the bar moves as one.
+  const uint8_t globalPhase = (uint8_t)(animPhase / 2);
+  const int16_t globalSway =
+      (globalPhase < 128)
+          ? (int16_t)globalPhase / 16 - 4
+          : 4 - (int16_t)(globalPhase - 128) / 16;
   const uint8_t baseHue = (uint8_t)((animPhase / 3) & 0xFF);
 
   for (uint8_t y = 0; y < MATRIX_HEIGHT; y++) {
-    // Gentle sway: ±~1.25 columns, phase varies with height + time.
-    const uint8_t swayPhase =
-        (uint8_t)(y * 11 + (animPhase / 2));
-    int16_t swayFp;
-    if (swayPhase < 128) {
-      swayFp = (int16_t)swayPhase / 5 - 12;  // -12 .. ~13
+    // At most ~half a bend across the full height (not a wiggly path).
+    const uint16_t yNorm =
+        (uint16_t)y * 128 / (MATRIX_HEIGHT > 1 ? (MATRIX_HEIGHT - 1) : 1);
+    const uint8_t bendPhase =
+        (uint8_t)(yNorm + (animPhase / 4));
+    int16_t bendFp;
+    if (bendPhase < 128) {
+      bendFp = (int16_t)bendPhase / 16 - 4;  // -4 .. ~4
     } else {
-      swayFp = 12 - (int16_t)(swayPhase - 128) / 5;
+      bendFp = 4 - (int16_t)(bendPhase - 128) / 16;
     }
 
-    // Half-width 16..32 fp units ⇒ full band width 2..4 columns, varies by Y.
-    const uint8_t widthPhase = (uint8_t)(y * 9 + animPhase / 4);
-    const uint16_t halfW =
-        (uint16_t)(16 + (widthPhase < 128 ? widthPhase : (uint8_t)(255 - widthPhase)) / 8);
+    // Half-width 16..24 fp ⇒ full band 2..3 columns; slow Y variation.
+    const uint16_t widthWave =
+        (yNorm < 64) ? yNorm : (uint16_t)(128 - yNorm);
+    const uint16_t halfW = (uint16_t)(16 + widthWave / 8);
 
-    int16_t center = (int16_t)travel + swayFp;
-    // Normalize center into [0, period).
+    int16_t center = (int16_t)travel + globalSway + bendFp;
     while (center < 0) {
       center += (int16_t)period;
     }
@@ -147,12 +155,11 @@ static void renderFlowFrame() {
     }
 
     for (uint8_t x = 0; x < MATRIX_WIDTH; x++) {
-      const int16_t xFp = (int16_t)x * 16 + 8;  // column center
+      const int16_t xFp = (int16_t)x * 16 + 8;
       int16_t d = xFp - center;
       if (d < 0) {
         d = (int16_t)(-d);
       }
-      // Circular distance across the wrapped panel.
       const int16_t dWrap = (int16_t)period - d;
       if (dWrap < d) {
         d = dWrap;
@@ -168,6 +175,7 @@ static void renderFlowFrame() {
       r = (uint8_t)((uint16_t)r * level / 255);
       g = (uint8_t)((uint16_t)g * level / 255);
       b = (uint8_t)((uint16_t)b * level / 255);
+      // (x, y) → strip x, LED y — X horizontal, Y vertical.
       strips[x].setPixelColor(y, r, g, b);
     }
   }
